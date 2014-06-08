@@ -1,0 +1,28 @@
+Name:           data-folds
+Version:        0.1
+Synopsis:       Efficient composable folds
+Description:
+  Efficient composable folds
+
+Cabal-Version:  >= 1.10
+License:        BSD3
+License-File:   LICENSE
+Author:         Aleksey Khudyakov <alexey.skladnoy@gmail.com>
+Maintainer:     Aleksey Khudyakov <alexey.skladnoy@gmail.com>
+Homepage:       http://bitbucket.org/Shimuuar/data-folds
+Category:       Data
+Build-Type:     Simple
+
+source-repository head
+  type:     hg
+  location: http://bitbucket.org/Shimuuar/data-folds
+
+Library
+  Ghc-options:          -Wall
+  Default-Language:    Haskell2010
+  Build-Depends:
+    base >=3 && <5
+  Exposed-modules:
+    Data.Folds
+    Data.Folds.Class
+    Data.Folds.Pipette
