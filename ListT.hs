@@ -1,4 +1,16 @@
-module ListT where
+{-# LANGUAGE RankNTypes #-}
+module ListT (
+    -- * Pure CPS-list
+    ListL(..)
+  , ListR(..)
+  , cpsR
+  , cpsL
+  , uncpsR
+  , uncpsL
+    -- * Monad transformer
+  , ListT(..)
+  , runListT
+  ) where
 
 import Control.Applicative
 import Control.Monad
@@ -7,32 +19,80 @@ import Control.Monad.Trans.Class
 
 
 ----------------------------------------------------------------
+-- CPS lists
+----------------------------------------------------------------
 
--- | CPS'd list
-newtype List a = List (forall r. (r -> a -> r) -> r -> r)
+-- | CPS'd list implemented as right-fold
+newtype ListR a = ListR (forall r. (a -> r -> r) -> r -> r)
 
-instance Functor List where
-  fmap f (List list) = List $ \cont r0 ->
+-- | CPS'd list implemented as left-fold
+newtype ListL a = ListL (forall r. (r -> a -> r) -> r -> r)
+
+
+-- | Convert list to CPS form using right fold
+cpsR :: [a] -> ListR a
+cpsR xs = ListR $ \cons nil -> foldr cons nil xs
+
+-- | Convert list to CPS form using right fold
+cpsL :: [a] -> ListL a
+cpsL xs = ListL $ \step x0 -> foldl step x0 xs
+
+
+uncpsR :: ListR a -> [a]
+uncpsR (ListR list) = list (:) []
+
+uncpsL :: ListL a -> [a]
+uncpsL (ListL list) = list (\xs x -> xs ++ [x]) [] -- FIXME: diff lists!
+
+
+
+instance Functor ListR where
+  fmap f (ListR list) = ListR $ \cont r0 ->
+    list (\a r -> cont (f a) r) r0
+
+instance Functor ListL where
+  fmap f (ListL list) = ListL $ \cont r0 ->
     list (\r a -> cont r (f a)) r0
 
-instance Monad List where
-  return x = List $ \cons nil -> cons nil x
-  List list >>= f = List $ \cons ->
-    list (\r a -> case f a of
-                    List list' -> list' cons r
+
+
+instance Monad ListR where
+  return x = ListR $ \cons nil -> cons x nil
+  ListR list >>= f = ListR $ \cons ->
+    list (\a r -> case f a of
+                    ListR list' -> list' cons r
          )
 
-instance Applicative List where
+instance Monad ListL where
+  return x = ListL $ \cons nil -> cons nil x
+  ListL list >>= f = ListL $ \cons ->
+    list (\r a -> case f a of
+                    ListL list' -> list' cons r
+         )
+
+
+instance Applicative ListR where
+  pure  = return
+  (<*>) = ap
+instance Applicative ListL where
   pure  = return
   (<*>) = ap
 
-instance Alternative List where
-  empty = List $ \_ r -> r
-  List contA <|> List contB = List $ \step r ->
-    -- NOTE: Left/right fold matters here!
+instance Alternative ListR where
+  empty = ListR $ \_ r -> r
+  ListR contA <|> ListR contB = ListR $ \step r ->
+    contA step (contB step r)
+
+instance Alternative ListL where
+  empty = ListL $ \_ r -> r
+  ListL contA <|> ListL contB = ListL $ \step r ->
     contB step (contA step r)
 
 
+
+
+----------------------------------------------------------------
+-- Monadic transformers
 ----------------------------------------------------------------
 
 -- | Monadic transformer
@@ -74,27 +134,16 @@ instance MonadIO m => MonadIO (ListT m) where
 
 ----------------------------------------------------------------
 
-cpsR,cpsL :: [a] -> List a
-cpsR xs = List $ \cons nil -> foldr (flip cons) nil xs
-cpsL xs = List $ \step x0  -> foldl step x0 xs
+-- go n = do
+--   print $ uncps $ ((arr1 >=> arr2) >=> arr3) n
+--   print $ uncps $ (arr1 >=> (arr2 >=> arr3)) n
+--   where
+--     arr1 n = cps [1..n]
+--     arr2 x = cps [x,x*100]
+--     arr3 x = cps [x,negate x]
+--     cps   = cpsL
+--     uncps = uncpsL
 
-uncpsR,uncpsL :: List a -> [a]
-uncpsR (List list) = list (flip (:)) []
-uncpsL (List list) = list (\xs x -> xs ++ [x]) [] -- FIXME: diff lists
-
-
-go n = do
-  print $ uncps $ ((arr1 >=> arr2) >=> arr3) n
-  print $ uncps $ (arr1 >=> (arr2 >=> arr3)) n
-  where
-    arr1 n = cps [1..n]
-    arr2 x = cps [x,x*100]
-    arr3 x = cps [x,negate x]
-    cps   = cpsL
-    uncps = uncpsL
-
-
-
--- a = 
-a,b,c :: ListT IO ()
-[a,b,c] = map (liftIO . putChar) ['a','b','c']
+-- -- a = 
+-- a,b,c :: ListT IO ()
+-- [a,b,c] = map (liftIO . putChar) ['a','b','c']
