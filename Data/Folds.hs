@@ -19,6 +19,8 @@ import Control.Monad
 
 import Data.Folds.Class
 import Data.Folds.Pipette
+import Data.Folds.Internal
+
 
 
 ----------------------------------------------------------------
@@ -129,12 +131,3 @@ instance (Monad m, FiniCat pipe (fold m)) => FiniCat pipe (FoldGen fold m) where
   composeFini (FoldGen mfold) pipe = FoldGen $ do
     fold <- mfold
     return $ composeFini fold pipe
-
-
-
-
-----------------------------------------------------------------
--- Helpers
-----------------------------------------------------------------
-
-data Pair a b = Pair !a !b
