@@ -27,6 +27,7 @@ Library
     Data.Folds.Class
     Data.Folds.Pipette
     Data.Folds.Left
+    Data.Folds.Monadic
     Data.Folds.Right
   Other-modules:
     Data.Folds.Internal
