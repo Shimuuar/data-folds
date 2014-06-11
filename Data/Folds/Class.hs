@@ -1,11 +1,13 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances     #-}
 -- | Type classes for folds data types
 module Data.Folds.Class where
 
 import Control.Category
 import Control.Monad
 
+import Data.Monoid
 import Data.List (foldl')
 import Data.Folds.Pipette
 
@@ -35,6 +37,38 @@ infixr 1 +<<
 (>>+) :: (FiniCat cat fini) => cat a b -> fini b c -> fini a c
 (>>+) = flip composeFini
 infixr 1 >>+
+
+
+-- | Type class for monoidal accumulators
+class Monoid m => Accumulator m a where
+  -- | Convert value to 1-element accumulator
+  unit :: a -> m
+  unit a = cons a mempty
+  -- | Prepend value to accumulator
+  cons :: a -> m -> m
+  cons a m = unit a <> m
+  -- | Append value to accumulator
+  snoc :: m -> a -> m
+  snoc m a = m <> unit a
+
+
+instance Accumulator () a where
+  unit _ = ()
+
+instance Num a => Accumulator (Sum a) a where
+  unit = Sum
+
+instance Num a => Accumulator (Product a) a where
+  unit = Product
+
+instance Accumulator Any Bool where
+  unit = Any
+
+instance Accumulator All Bool where
+  unit = All
+
+instance Accumulator (Endo a) (a -> a) where
+  unit = Endo
 
 
 
