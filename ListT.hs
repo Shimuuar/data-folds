@@ -23,10 +23,10 @@ import Control.Monad.Trans.Class
 ----------------------------------------------------------------
 
 -- | CPS'd list implemented as right-fold
-newtype ListR a = ListR (forall r. (a -> r -> r) -> r -> r)
+newtype ListR a = ListR { unListR :: forall r. (a -> r -> r) -> r -> r }
 
 -- | CPS'd list implemented as left-fold
-newtype ListL a = ListL (forall r. (r -> a -> r) -> r -> r)
+newtype ListL a = ListL { unListL :: forall r. (r -> a -> r) -> r -> r }
 
 
 -- | Convert list to CPS form using right fold
@@ -47,28 +47,25 @@ uncpsL (ListL list) = list (\xs x -> xs ++ [x]) [] -- FIXME: diff lists!
 
 
 instance Functor ListR where
-  fmap f (ListR list) = ListR $ \cont r0 ->
-    list (\a r -> cont (f a) r) r0
+  fmap f (ListR list) = ListR $ \cons nil ->
+    list (\a as -> f a `cons` as) nil
 
 instance Functor ListL where
-  fmap f (ListL list) = ListL $ \cont r0 ->
-    list (\r a -> cont r (f a)) r0
+  fmap f (ListL list) = ListL $ \step x0 ->
+    list (\r a -> step r (f a)) x0
 
 
 
 instance Monad ListR where
   return x = ListR $ \cons nil -> cons x nil
-  ListR list >>= f = ListR $ \cons ->
-    list (\a r -> case f a of
-                    ListR list' -> list' cons r
-         )
+  ListR list >>= f = ListR $ \cons nil ->
+    list (\a r -> unListR (f a) cons r) nil
 
 instance Monad ListL where
-  return x = ListL $ \cons nil -> cons nil x
-  ListL list >>= f = ListL $ \cons ->
-    list (\r a -> case f a of
-                    ListL list' -> list' cons r
-         )
+  return a = ListL $ \step x0 -> step x0 a
+  ListL list >>= f = ListL $ \step x0 ->
+    list (\r a -> unListL (f a) step r) x0
+
 
 
 instance Applicative ListR where
@@ -80,13 +77,13 @@ instance Applicative ListL where
 
 instance Alternative ListR where
   empty = ListR $ \_ r -> r
-  ListR contA <|> ListR contB = ListR $ \step r ->
-    contA step (contB step r)
+  ListR contA <|> ListR contB = ListR $ \cons nil ->
+    contA cons (contB cons r)
 
 instance Alternative ListL where
   empty = ListL $ \_ r -> r
-  ListL contA <|> ListL contB = ListL $ \step r ->
-    contB step (contA step r)
+  ListL contA <|> ListL contB = ListL $ \step x0 ->
+    contB step (contA step x0)
 
 
 
