@@ -2,9 +2,11 @@
 {-# LANGUAGE MultiParamTypeClasses     #-}
 module Data.Folds.Left (
     Fold(..)
+  , fromAcc
   ) where
 
 import Control.Applicative
+import Data.Monoid
 
 import Data.Folds.Class
 import Data.Folds.Pipette
@@ -14,6 +16,10 @@ import Data.Folds.Internal
 
 -- | Strict left pure fold.
 data Fold a b = forall x. Fold (x -> a -> x) !x (x -> b)
+
+-- | Convert monoidal accumulator to left fold
+fromAcc :: Accumulator m a => Fold a m
+fromAcc = Fold snoc mempty id
 
 instance Functor (Fold a) where
   fmap f (Fold step x done) = Fold step x (f . done)

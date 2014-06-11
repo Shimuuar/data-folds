@@ -2,7 +2,21 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
 -- | Type classes for folds data types
-module Data.Folds.Class where
+module Data.Folds.Class (
+    -- * Category-like type class
+    FiniCat(..)
+  , (+<<)
+  , (>>+)
+    -- * Monoid accumulators
+  , Accumulator(..)
+    -- * Stateful folds API
+  , PureFold(..)
+  , runFold
+  , MonadicFold(..)
+  , runFoldM
+    -- * Data samples
+  , Sample(..)
+  ) where
 
 import Control.Category
 import Control.Monad
