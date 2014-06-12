@@ -1,7 +1,10 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 -- | Folds that allow multiple pass over data
-module Data.Folds.MultiPass where
+module Data.Folds.MultiPass (
+    MFold(..)
+  , mfold
+  ) where
 
 import Control.Arrow ((>>>))
 import Control.Applicative
