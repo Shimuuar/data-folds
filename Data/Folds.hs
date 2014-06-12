@@ -1,15 +1,10 @@
 -- | Concrete folds for
 module Data.Folds (
-    -- * Pure fold
-    Fold(..)
-    -- * Monadic fold
-  , FoldM(..)
-  , FoldST(..)
-    -- * Monadic blueprint fold
-  , FoldGen(..)
+    module Data.Folds.Class
+  , module Data.Folds.Pipette
+  , module Data.Folds.Left
   ) where
 
 import Data.Folds.Class
 import Data.Folds.Pipette
 import Data.Folds.Left
-import Data.Folds.Monadic
