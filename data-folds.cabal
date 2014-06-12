@@ -28,5 +28,6 @@ Library
     Data.Folds.Pipette
     Data.Folds.Left
     Data.Folds.Monadic
+    Data.Folds.MultiPass
   Other-modules:
     Data.Folds.Internal
