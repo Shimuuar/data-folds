@@ -9,6 +9,7 @@ module Data.Folds.Class (
   , (>>+)
     -- * Monoid accumulators
   , Accumulator(..)
+  , Count(..)
     -- * Stateful folds API
   , PureFold(..)
   , runFold
@@ -64,6 +65,15 @@ class Monoid m => Accumulator m a where
   -- | Append value to accumulator
   snoc :: m -> a -> m
   snoc m a = m <> unit a
+
+newtype Count a = Count { getCount :: Int }
+
+instance Monoid (Count a) where
+  mempty = Count 0
+  mappend (Count a) (Count b) = Count (a + b)
+
+instance Accumulator (Count a) a where
+  unit _ = Count 1
 
 
 instance Accumulator () a where
