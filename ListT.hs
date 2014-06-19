@@ -78,7 +78,7 @@ instance Applicative ListL where
 instance Alternative ListR where
   empty = ListR $ \_ r -> r
   ListR contA <|> ListR contB = ListR $ \cons nil ->
-    contA cons (contB cons r)
+    contA cons (contB cons nil)
 
 instance Alternative ListL where
   empty = ListL $ \_ r -> r
