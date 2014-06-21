@@ -6,8 +6,8 @@ module Data.Folds.MultiPass (
   , mfold
   ) where
 
-import Control.Arrow ((>>>))
 import Control.Applicative
+import Control.Monad
 
 import Data.Folds.Class
 import Data.Folds.Pipette
@@ -18,36 +18,48 @@ import Data.Folds.Left
 -- Multiple pass fold
 ----------------------------------------------------------------
 
--- | Folds which may require several passes over same data set.
--- data MFold a b = MFold { runMFold :: Source a -> b }
+-- | Fold which may require several passes over same data set.  It
+--   tries to minimize number of data traversals, Only monadic bind
+--   introduce need to traverse data twice. Applicative interface will
+--   traverse data only once like simple 'Fold'
+data MFold a b
+  = OneStage (Fold a b)
+  | forall y. Staged   (Fold a y) (y -> MFold a b)
 
-
-data MFold a b = forall y. MFold (Source a -> y) (y -> Fold a b)
-
-
+-- | Lift simple left fold into multiple pass one.
 mfold :: Fold a b -> MFold a b
-mfold fold = MFold (const ()) (const fold)
+mfold = OneStage
 
 instance Functor (MFold a) where
-  fmap f (MFold prev fold) = MFold prev ((fmap . fmap) f fold)
+  fmap f (OneStage fold)    = OneStage (fmap f fold)
+  fmap f (Staged fold next) = Staged fold ((fmap . fmap) f next)
 
 instance Applicative (MFold a) where
-  pure = mfold . pure
-  MFold prevA foldA <*> MFold prevB foldB = MFold
-    (\src -> (prevA src, prevB src))
-    (\(a,b) -> foldA a <*> foldB b)
+  pure = OneStage . pure
+  OneStage foldA <*> OneStage foldB = OneStage (foldA <*> foldB)
+  OneStage foldA <*> Staged foldB next
+    = Staged ((,) <$> foldA <*> foldB) (\(f,y) -> f <$> next y)
+  Staged foldA next <*> OneStage foldB
+    = Staged ((,) <$> foldA <*> foldB) (\(y,a) -> ($ a) <$> next y)
+  Staged foldA nextA <*> Staged foldB nextB
+    = Staged ((,) <$> foldA <*> foldB) (\(x,y) -> nextA x <*> nextB y)
 
 instance Monad (MFold a) where
   return = pure
-  MFold prev fold >>= f
-    = MFold prev' id
-    where
-      prev' src = let y = prev src
-                      a = runFold (fold y +<< src)
-                  in case f a of
-                       MFold pr fld -> fld (pr src)
+  OneStage fold    >>= f = Staged fold f
+  Staged fold next >>= f = Staged fold (next >=> f)
 
 instance FiniCat Pipette MFold where
-  composeFini (MFold prev fold) pipe
-    = MFold (\src -> prev (src >>> pipe))
-            (\y   -> fold y +<< pipe)
+  composeFini (OneStage fold) pipe = OneStage (fold +<< pipe)
+  composeFini (Staged fold next) pipe
+    = Staged (fold +<< pipe) (\y -> next y +<< pipe)
+
+instance PureFold MFold where
+  extractFold (OneStage fold)    = extractFold fold
+  extractFold (Staged fold next) = extractFold $ next $ extractFold fold
+
+  feedOne a fold = feedMany (Pipette $ \step r _ -> step r a) fold
+  feedMany src (OneStage fold)
+    = OneStage (feedMany src fold)
+  feedMany src (Staged fold next)
+    = Staged (feedMany src fold) (feedMany src <$> next)
