@@ -23,10 +23,10 @@ import Control.Monad.Trans.Class
 ----------------------------------------------------------------
 
 -- | CPS'd list implemented as right-fold
-newtype ListR a = ListR { unListR :: forall r. (a -> r -> r) -> r -> r }
+newtype ListR a = ListR { foldrR :: forall r. (a -> r -> r) -> r -> r }
 
 -- | CPS'd list implemented as left-fold
-newtype ListL a = ListL { unListL :: forall r. (r -> a -> r) -> r -> r }
+newtype ListL a = ListL { foldlL :: forall r. (r -> a -> r) -> r -> r }
 
 
 -- | Convert list to CPS form using right fold
@@ -44,7 +44,13 @@ uncpsR (ListR list) = list (:) []
 uncpsL :: ListL a -> [a]
 uncpsL (ListL list) = list (\xs x -> xs ++ [x]) [] -- FIXME: diff lists!
 
+tailL :: ListL a -> ListL a
+tailL list = ListL $ \step x0 ->
+  snd $ foldlL list (\(f,r) a -> if f then (False,r) else (False,step r a)) (True,x0) 
 
+scanlL :: (b -> a -> b) -> b -> ListL a -> ListL b
+scanlL f b0 list = ListL $ \step x0 ->
+  snd $ foldlL list (\(b,r) a -> let b' = f b a in (b',step r b')) (b0,step x0 b0)
 
 instance Functor ListR where
   fmap f (ListR list) = ListR $ \cons nil ->
@@ -59,12 +65,12 @@ instance Functor ListL where
 instance Monad ListR where
   return x = ListR $ \cons nil -> cons x nil
   ListR list >>= f = ListR $ \cons nil ->
-    list (\a r -> unListR (f a) cons r) nil
+    list (\a r -> foldrR (f a) cons r) nil
 
 instance Monad ListL where
   return a = ListL $ \step x0 -> step x0 a
   ListL list >>= f = ListL $ \step x0 ->
-    list (\r a -> unListL (f a) step r) x0
+    list (\r a -> foldlL (f a) step r) x0
 
 
 
