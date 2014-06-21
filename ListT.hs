@@ -16,6 +16,7 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Data.Monoid
 
 
 ----------------------------------------------------------------
@@ -90,6 +91,13 @@ instance Alternative ListL where
   empty = ListL $ \_ r -> r
   ListL contA <|> ListL contB = ListL $ \step x0 ->
     contB step (contA step x0)
+
+instance Monoid (ListR a) where
+  mempty  = empty
+  mappend = (<|>)
+instance Monoid (ListL a) where
+  mempty  = empty
+  mappend = (<|>)
 
 
 
