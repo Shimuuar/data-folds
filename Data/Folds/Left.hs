@@ -37,4 +37,8 @@ instance FiniCat Pipette Fold where
 
 instance PureFold Fold where
   extractFold (Fold _ x out) = out x
-  feedFold a (Fold step x out) = Fold step (step x a) out
+  feedOne a (Fold step x out)
+    = Fold step (step x a) out
+  feedMany (Pipette cont) (Fold step x0 out)
+    = Fold step (cont step x0 ()) out
+

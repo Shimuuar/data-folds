@@ -104,8 +104,11 @@ instance Accumulator (Endo a) (a -> a) where
 class PureFold fold where
   -- | Extract current value from fold
   extractFold :: fold a b -> b
-  -- | Push one element into fold
-  feedFold :: a -> fold a b -> fold a b
+  -- | Push one element into fold  
+  feedOne  :: a -> fold a b -> fold a b
+  -- | Feed sample to the fold
+  feedMany :: Source a -> fold a b -> fold a b
+
 
 -- | Type class for monadic manifest folds.
 class MonadicFold fold where
@@ -116,7 +119,7 @@ class MonadicFold fold where
 
 -- | Execute fold with attached data source
 runFold :: (PureFold fold) => fold () a -> a
-runFold = extractFold . feedFold ()
+runFold = extractFold . feedOne ()
 
 -- | Execute monadic fold with attached data source
 runFoldM :: (Monad m, MonadicFold fold) => fold m () a -> m a
