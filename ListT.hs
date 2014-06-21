@@ -107,10 +107,10 @@ instance Monoid (ListL a) where
 ----------------------------------------------------------------
 
 -- | Monadic transformer
-newtype ListT m a = ListT (forall r. (r -> a -> m r) -> r -> m r)
+newtype ListT m a = ListT { foldMT :: forall r. (r -> a -> m r) -> r -> m r }
 
 runListT :: Monad m => ListT m a -> m [a]
-runListT (ListT cont) = cont (\as a -> return (as ++ [a])) []
+runListT list = foldMT list (\as a -> return (as ++ [a])) []
 
 instance Monad m => Functor (ListT m) where
   fmap f (ListT list) = ListT $ \cont r0 -> list (\r a -> cont r (f a)) r0
@@ -121,11 +121,11 @@ instance Monad m => Applicative (ListT m) where
 
 instance Monad m => Monad (ListT m) where
   return x = ListT $ \cons nil -> cons nil x
-  ListT list >>= f = ListT $ \cons ->
-    list (\r a -> case f a of
-                    ListT list' -> list' cons r
-         )
+  list >>= f = ListT $ \cons ->
+    foldMT list (\r a -> foldMT (f a) cons r)
 
+
+-- FIXME: Is this meaningful instance
 instance Monad m => Alternative (ListT m) where
   empty = ListT $ \_ r -> return r
   ListT contA <|> ListT contB = ListT $ \step r ->
@@ -134,12 +134,10 @@ instance Monad m => Alternative (ListT m) where
 
 
 instance MonadTrans ListT where
-  lift m = ListT $ \cons nil -> do a <- m
-                                   cons nil a
+  lift m = ListT $ \cons nil -> cons nil =<< m
 
 instance MonadIO m => MonadIO (ListT m) where
-  liftIO io = do ListT $ \cons nil -> do a <- liftIO io
-                                         cons nil a
+  liftIO io = do ListT $ \cons nil -> cons nil =<< liftIO io
 
 
 
@@ -156,5 +154,5 @@ instance MonadIO m => MonadIO (ListT m) where
 --     uncps = uncpsL
 
 -- -- a = 
--- a,b,c :: ListT IO ()
--- [a,b,c] = map (liftIO . putChar) ['a','b','c']
+a,b,c :: ListT IO ()
+[a,b,c] = map (liftIO . putChar) ['a','b','c']
