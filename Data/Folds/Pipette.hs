@@ -7,6 +7,7 @@ module Data.Folds.Pipette (
   , SourceM
   , toPipetteM
     -- ** Primitives
+  , pipe
   , cut
   , flatten
   , flatMap
@@ -39,8 +40,8 @@ type SourceM m a = PipetteM m () a
 
 -- | Convert pure stream processor to monadic
 toPipetteM :: Monad m => Pipette a b -> PipetteM m a b
-toPipetteM (Pipette pipe) = PipetteM $ \contM r0 ->
-  pipe (\mr b -> do{ r <- mr; contM r b }) (return r0)
+toPipetteM (Pipette pipette) = PipetteM $ \contM r0 ->
+  pipette (\mr b -> do{ r <- mr; contM r b }) (return r0)
 
 
 
@@ -81,6 +82,9 @@ instance Monad m => Monoid (PipetteM m a b) where
 ----------------------------------------------------------------
 -- Primitives
 ----------------------------------------------------------------
+
+pipe :: (a -> b) -> Pipette a b
+pipe f = Pipette $ \cont r a -> cont r (f a)
 
 -- | Same as /filter/. Apply cut to data.
 cut :: (a -> Bool) -> Pipette a a
