@@ -9,7 +9,10 @@ module Data.Folds.Class (
   , (>>+)
     -- * Monoid accumulators
   , Accumulator(..)
+    -- ** Data types
   , Count(..)
+  , Max(..)
+  , Min(..)
     -- * Stateful folds API
   , PureFold(..)
   , runFold
@@ -74,6 +77,37 @@ instance Monoid (Count a) where
 
 instance Accumulator (Count a) a where
   unit _ = Count 1
+
+
+newtype Max a = Max { getMax :: Maybe a }
+
+instance Ord a => Monoid (Max a) where
+  mempty = Max Nothing
+  mappend (Max Nothing) m = m
+  mappend m (Max Nothing) = m
+  mappend (Max (Just a)) (Max (Just b)) = Max (Just $! max a b)
+
+instance Ord a => Accumulator (Max a) a where
+  snoc (Max (Just a)) b = Max $ Just $! max a b
+  snoc (Max Nothing)  b = Max $ Just b
+  cons = flip snoc
+  unit = Max . Just
+
+
+newtype Min a = Min { getMin :: Maybe a }
+
+instance Ord a => Monoid (Min a) where
+  mempty = Min Nothing
+  mappend (Min Nothing) m = m
+  mappend m (Min Nothing) = m
+  mappend (Min (Just a)) (Min (Just b)) = Min (Just $! min a b)
+
+instance Ord a => Accumulator (Min a) a where
+  snoc (Min (Just a)) b = Min $ Just $! min a b
+  snoc (Min Nothing)  b = Min $ Just b
+  cons = flip snoc
+  unit = Min . Just
+
 
 
 instance Accumulator () a where
