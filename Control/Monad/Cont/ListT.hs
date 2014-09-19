@@ -1,14 +1,26 @@
 {-# LANGUAGE RankNTypes #-}
 -- | Another implementation of ListT monad
 module Control.Monad.Cont.ListT (
+    -- * ListT
     ListT(..)
-  , runListT  
+  , runListT
+    -- * Local transforms
+  , Pipe(..)
   ) where
 
+import Control.Arrow
 import Control.Applicative
+import Control.Category
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+
+import Prelude hiding (id,(.))
+
+
+----------------------------------------------------------------
+-- ListT
+----------------------------------------------------------------
 
 -- | Monad transformer which add backtracking to monad.
 newtype ListT m a = ListT { unListT :: forall r. (r -> a -> m r) -> r -> m r }
@@ -42,3 +54,22 @@ instance MonadTrans ListT where
 
 instance MonadIO m => MonadIO (ListT m) where
   liftIO = lift . liftIO
+
+
+
+
+----------------------------------------------------------------
+-- Kleisli arrows
+----------------------------------------------------------------
+
+-- | Local function. which is
+newtype Pipe m a b = Pipe (a -> ListT m b)
+
+instance Monad m => Category (Pipe m) where
+  id = Pipe return
+  Pipe kb . Pipe ka = Pipe (kb <=< ka)
+
+instance Monad m => Arrow (Pipe m) where
+  arr f = Pipe $ return . f
+  first  (Pipe f) = Pipe (\ ~(b,d) -> f b >>= \c -> return (c,d))
+  second (Pipe f) = Pipe (\ ~(d,b) -> f b >>= \c -> return (d,c))
