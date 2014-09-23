@@ -22,7 +22,8 @@ Library
   Default-Language:    Haskell2010
   Build-Depends:
     base >=3 && <5,
-    transformers
+    transformers,
+    free
   Exposed-modules:
     Data.Folds
     Data.Folds.Class

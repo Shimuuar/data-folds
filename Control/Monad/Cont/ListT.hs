@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ExistentialQuantification #-}
 -- | Another implementation of ListT monad
 module Control.Monad.Cont.ListT (
     -- * ListT
@@ -14,6 +15,8 @@ import Control.Category
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+
+import Data.Folds.Internal
 
 import Prelude hiding (id,(.))
 
@@ -73,3 +76,30 @@ instance Monad m => Arrow (Pipe m) where
   arr f = Pipe $ return . f
   first  (Pipe f) = Pipe (\ ~(b,d) -> f b >>= \c -> return (c,d))
   second (Pipe f) = Pipe (\ ~(d,b) -> f b >>= \c -> return (d,c))
+
+
+
+
+
+----------------------------------------------------------------
+-- Monadic fold
+----------------------------------------------------------------
+
+-- | Monadic strict left fold
+data FoldM m a b = forall x. FoldM (x -> a -> m x) !x (x -> m b)
+
+instance Monad m => Functor (FoldM m a) where
+  fmap f (FoldM step x done) = FoldM step x (liftM f . done)
+
+instance Monad m => Applicative (FoldM m a) where
+  pure x = FoldM (\s _ -> return s) () (\_ -> return x)
+  FoldM stepA xA0 doneA <*> FoldM stepB xB0 doneB
+    = FoldM (\(Pair xA xB) a -> do xA' <- stepA xA a
+                                   xB' <- stepB xB a
+                                   return $! Pair xA' xB'
+            )
+            (Pair xA0 xB0)
+            (\(Pair xA xB) -> do a <- doneA xA
+                                 b <- doneB xB
+                                 return $ a b
+            )
