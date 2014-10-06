@@ -7,6 +7,11 @@ module ListT (
   , cpsL
   , uncpsR
   , uncpsL
+    -- ** List transformations
+  , consR
+  , consL
+  , snocR
+  , snocL
     -- * Monad transformer
   , ListT(..)
   , runListT
@@ -17,16 +22,20 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Monoid
+import qualified Data.Foldable    as T
+import qualified Data.Traversable as T
 
 
 ----------------------------------------------------------------
 -- CPS lists
 ----------------------------------------------------------------
 
--- | CPS'd list implemented as right-fold
+-- | CPS-transformation of list which should be consumed using right
+--   fold.
 newtype ListR a = ListR { foldrR :: forall r. (a -> r -> r) -> r -> r }
 
--- | CPS'd list implemented as left-fold
+-- | CPS-transformation of list which should be consumed using left
+--   fold.
 newtype ListL a = ListL { foldlL :: forall r. (r -> a -> r) -> r -> r }
 
 
@@ -45,14 +54,33 @@ uncpsR (ListR list) = list (:) []
 uncpsL :: ListL a -> [a]
 uncpsL (ListL list) = list (\xs x -> xs ++ [x]) [] -- FIXME: diff lists!
 
+-- | Prepend element to a list
+consR :: a -> ListR a -> ListR a
+consR a xs = ListR $ \cons nil -> cons a $ foldrR xs cons nil
+
+-- | Prepend element to a list
+consL :: a -> ListL a -> ListL a
+consL a xs = ListL $ \step x0 -> foldlL xs step (step x0 a)
+
+snocR :: ListR a -> a -> ListR a
+snocR xs a = ListR $ \cons nil -> foldrR xs cons (cons a nil)
+
+-- | Append element to a list
+snocL :: ListL a -> a -> ListL a
+snocL xs a = ListL $ \step x0 -> step (foldlL xs step x0) a
+
+
+
 tailL :: ListL a -> ListL a
 tailL list = ListL $ \step x0 ->
-  snd $ foldlL list (\(f,r) a -> if f then (False,r) else (False,step r a)) (True,x0) 
+  snd $ foldlL list (\(f,r) a -> if f then (False,r) else (False,step r a)) (True,x0)
 
 scanlL :: (b -> a -> b) -> b -> ListL a -> ListL b
 scanlL f b0 list = ListL $ \step x0 ->
   snd $ foldlL list (\(b,r) a -> let b' = f b a in (b',step r b')) (b0,step x0 b0)
 
+
+----------------------------------------
 instance Functor ListR where
   fmap f (ListR list) = ListR $ \cons nil ->
     list (\a as -> f a `cons` as) nil
@@ -62,7 +90,17 @@ instance Functor ListL where
     list (\r a -> step r (f a)) x0
 
 
+----------------------------------------
+instance Applicative ListR where
+  pure  = return
+  (<*>) = ap
 
+instance Applicative ListL where
+  pure  = return
+  (<*>) = ap
+
+
+----------------------------------------
 instance Monad ListR where
   return x = ListR $ \cons nil -> cons x nil
   ListR list >>= f = ListR $ \cons nil ->
@@ -74,14 +112,7 @@ instance Monad ListL where
     list (\r a -> foldlL (f a) step r) x0
 
 
-
-instance Applicative ListR where
-  pure  = return
-  (<*>) = ap
-instance Applicative ListL where
-  pure  = return
-  (<*>) = ap
-
+----------------------------------------
 instance Alternative ListR where
   empty = ListR $ \_ r -> r
   ListR contA <|> ListR contB = ListR $ \cons nil ->
@@ -99,7 +130,17 @@ instance Monoid (ListL a) where
   mempty  = empty
   mappend = (<|>)
 
+instance T.Foldable ListR where
+  foldr f x l = foldrR l f x
 
+instance T.Foldable ListL where
+  foldMap f l = foldlL (fmap f l) mappend mempty
+
+instance T.Traversable ListR where
+  sequenceA l = foldrR l (liftA2 consR) (pure mempty)
+
+instance T.Traversable ListL where
+  sequenceA l = foldlL l (liftA2 snocL) (pure mempty)
 
 
 ----------------------------------------------------------------
