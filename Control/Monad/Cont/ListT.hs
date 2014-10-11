@@ -5,6 +5,9 @@ module Control.Monad.Cont.ListT (
     -- * ListT
     ListT(..)
   , runListT
+    -- ** Other values
+  , hoist
+  , dropListT
     -- * Local transforms
   , Pipe(..)
   ) where
@@ -58,7 +61,32 @@ instance MonadTrans ListT where
 instance MonadIO m => MonadIO (ListT m) where
   liftIO = lift . liftIO
 
+-- | Change type of base monad
+--
+-- FIXME: check that it preserve order of effects
+hoist :: forall m n a. (Monad m, Monad n)
+          => (forall x. m x -> n x) -> ListT m a -> ListT n a
+hoist run (ListT list) = ListT $ \step r0 ->
+  let -- forall r. n r -> a -> m (n r)
+      stepM mr a = return $ mr >>= (\r -> step r a)
+  in join . run $ list stepM (return r0)
 
+
+-- | Drop N elements from list
+dropListT :: (Monad m) => Int -> ListT m a -> ListT m a
+dropListT n list = ListT $ \step r0 ->
+  let stepM (cnt,r) a
+        | cnt <= 0  = do r' <- step r a
+                         return (0,r')
+        | otherwise = return (cnt-1,r)
+  in do (_,r) <- unListT list stepM (n,r0)
+        return r
+
+
+
+uncons :: Monad m => ListT m a -> m (Maybe (a, ListT m a))
+uncons (ListT list) = do
+  undefined
 
 
 ----------------------------------------------------------------
