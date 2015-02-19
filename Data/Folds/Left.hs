@@ -32,8 +32,8 @@ instance Applicative (Fold a) where
            (\(Pair xA xB) -> doneA xA (doneB xB))
 
 instance FiniCat Pipette Fold where
-  composeFini (Fold step x0 done) (Pipette pipe)
-    = Fold (pipe step) x0 done
+  Fold step x0 done +<< Pipette p
+    = Fold (p step) x0 done
 
 instance PureFold Fold where
   extractFold (Fold _ x out) = out x

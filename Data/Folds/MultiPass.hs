@@ -10,7 +10,7 @@ import Control.Applicative
 import Control.Monad
 
 import Data.Folds.Class
-import Data.Folds.Pipette
+import Data.Folds.Pipette (Pipette(..))
 import Data.Folds.Left
 
 
@@ -50,15 +50,15 @@ instance Monad (MFold a) where
   Staged fold next >>= f = Staged fold (next >=> f)
 
 instance FiniCat Pipette MFold where
-  composeFini (OneStage fold) pipe = OneStage (fold +<< pipe)
-  composeFini (Staged fold next) pipe
+  OneStage fold +<< pipe = OneStage (fold +<< pipe)
+  Staged fold next +<< pipe
     = Staged (fold +<< pipe) (\y -> next y +<< pipe)
 
 instance PureFold MFold where
   extractFold (OneStage fold)    = extractFold fold
   extractFold (Staged fold next) = extractFold $ next $ extractFold fold
 
-  feedOne a fold = feedMany (Pipette $ \step r _ -> step r a) fold
+  feedOne a = feedMany (Pipette $ \step r _ -> step r a)
   feedMany src (OneStage fold)
     = OneStage (feedMany src fold)
   feedMany src (Staged fold next)

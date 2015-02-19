@@ -15,7 +15,7 @@ import Control.Applicative
 import Control.Monad
 
 import Data.Folds.Class
-import Data.Folds.Pipette
+import Data.Folds.Pipette (Pipette(..),PipetteM(..),toPipetteM)
 import Data.Folds.Internal
 
 
@@ -66,17 +66,17 @@ instance MonadicFold FoldST where
   feedFoldM a fold@(FoldST inp _) = inp a >> return fold
 
 instance Monad m => FiniCat Pipette (FoldM m) where
-  composeFini fold pipe
-    = composeFini fold (toPipetteM pipe)
+  fold +<<pipe
+    = fold +<< toPipetteM pipe
 instance (m ~ m', Monad m) => FiniCat (PipetteM m) (FoldM m') where
-  composeFini (FoldM step x0 done) (PipetteM pipe)
+  FoldM step x0 done +<< PipetteM pipe
     = FoldM (pipe step) x0 done
 
 instance Monad m => FiniCat Pipette (FoldST m) where
-  composeFini fold pipe
-    = composeFini fold (toPipetteM pipe)
+  fold +<< pipe
+    = fold +<< toPipetteM pipe
 instance (m ~ m', Monad m) => FiniCat (PipetteM m') (FoldST m) where
-  composeFini (FoldST inp out) (PipetteM pipe)
+  FoldST inp out +<< PipetteM pipe
     = FoldST (pipe (const inp) ()) out
 
 
@@ -98,6 +98,6 @@ instance (Monad m, Applicative (fold m a)) => Applicative (FoldGen fold m a) whe
   FoldGen makeA <*> FoldGen makeB = FoldGen $ liftM2 (<*>) makeA makeB
 
 instance (Monad m, FiniCat pipe (fold m)) => FiniCat pipe (FoldGen fold m) where
-  composeFini (FoldGen mfold) pipe = FoldGen $ do
+  FoldGen mfold +<< pipe = FoldGen $ do
     fold <- mfold
-    return $ composeFini fold pipe
+    return $ fold +<< pipe

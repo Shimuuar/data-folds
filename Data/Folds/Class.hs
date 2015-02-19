@@ -5,7 +5,6 @@
 module Data.Folds.Class (
     -- * Category-like type class
     FiniCat(..)
-  , (+<<)
   , (>>+)
   , InitCat(..)
   , (+>>)  
