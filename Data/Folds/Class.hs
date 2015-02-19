@@ -7,6 +7,8 @@ module Data.Folds.Class (
     FiniCat(..)
   , (+<<)
   , (>>+)
+  , InitCat(..)
+  , (+>>)  
     -- * Monoid accumulators
   , Accumulator(..)
     -- ** Data types
@@ -34,7 +36,7 @@ import Prelude hiding (id,(.))
 
 
 ----------------------------------------------------------------
--- Composition
+-- Category-like composition
 ----------------------------------------------------------------
 
 -- | Category-like type class where object of @fini@ type can appear
@@ -56,6 +58,22 @@ infixr 1 +<<
 (>>+) = flip composeFini
 infixr 1 >>+
 
+
+-- | Same as 'FiniCat' but composition is from other side
+class Category cat => InitCat ic cat where
+  (<<+) :: cat a b -> ic a -> ic b
+infixr 1 <<+
+
+-- | Synonym for 'composeFini' with arguments flipped
+(+>>) :: (InitCat ic cat) => ic a -> cat a b -> ic b
+(+>>) = flip (<<+)
+infixl 1 +>>
+
+
+
+----------------------------------------------------------------
+-- Monoidal accumulator
+----------------------------------------------------------------
 
 -- | Type class for monoidal accumulators
 class Monoid m => Accumulator m a where
