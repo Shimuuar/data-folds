@@ -46,16 +46,12 @@ import Prelude hiding (id,(.))
 --   > f +<< id = f                        - identity
 --   > f +<< (g <<< h) = (f +<< g) +<< h   - associativity
 class Category cat => FiniCat cat fini where
-  composeFini :: fini b c -> cat a b -> fini a c
-
--- | Synonym for 'composeFini'
-(+<<) :: (FiniCat cat fini) => fini b c -> cat a b -> fini a c
-(+<<) = composeFini
+  (+<<) :: fini b c -> cat a b -> fini a c
 infixr 1 +<<
 
 -- | Synonym for 'composeFini' with arguments flipped
 (>>+) :: (FiniCat cat fini) => cat a b -> fini b c -> fini a c
-(>>+) = flip composeFini
+(>>+) = flip (+<<)
 infixr 1 >>+
 
 
