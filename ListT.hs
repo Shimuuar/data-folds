@@ -115,7 +115,9 @@ tailL :: ListL a -> ListL a
 tailL list = ListL $ \step x0 ->
   snd $ foldlL list (\(f,r) a -> if f then (False,r) else (False,step r a)) (True,x0)
 
+
 takeL :: Int -> ListL a -> ListL a
+-- FIXME: it traverse list fully.
 takeL n0 xs = ListL $ \step r0 ->
   snd $ foldlL xs
     (\(n,r) a -> if n <= 0 then (n,r) else (n-1,step r a))
@@ -128,7 +130,19 @@ scanlL :: (b -> a -> b) -> b -> ListL a -> ListL b
 scanlL f b0 list = ListL $ \step x0 ->
   snd $ foldlL list (\(b,r) a -> let b' = f b a in (b',step r b')) (b0,step x0 b0)
 
+unfoldrR :: (s -> Maybe (a,s)) -> s -> ListR a
+unfoldrR f s0 = ListR $ \cons nil ->
+  let loop s = case f s of
+                 Just (a,s') -> cons a (loop s')
+                 Nothing     -> nil
+  in loop s0
 
+unfoldrL :: (s -> Maybe (a,s)) -> s -> ListL a
+unfoldrL f s0 = ListL $ \step r0 ->
+  let loop r s = case f s of
+                   Just (a,s') -> loop (step r a) s'
+                   Nothing     -> r
+  in loop r0 s0
 
 
 ----------------------------------------------------------------
