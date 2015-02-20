@@ -29,6 +29,11 @@ newtype ListR a = ListR { foldrR :: forall r. (a -> r -> r) -> r -> r }
 -- | CPS'd list implemented as left-fold
 newtype ListL a = ListL { foldlL :: forall r. (r -> a -> r) -> r -> r }
 
+instance Show a => Show (ListR a) where
+  show = show . uncpsR
+instance Show a => Show (ListL a) where
+  show = show . uncpsL
+
 
 -- | Convert list to CPS form using right fold
 cpsR :: [a] -> ListR a
@@ -43,15 +48,12 @@ uncpsR :: ListR a -> [a]
 uncpsR (ListR list) = list (:) []
 
 uncpsL :: ListL a -> [a]
-uncpsL (ListL list) = list (\xs x -> xs ++ [x]) [] -- FIXME: diff lists!
+uncpsL (ListL list) = list (\xs x -> xs . (x:)) id $ []
 
-tailL :: ListL a -> ListL a
-tailL list = ListL $ \step x0 ->
-  snd $ foldlL list (\(f,r) a -> if f then (False,r) else (False,step r a)) (True,x0) 
 
-scanlL :: (b -> a -> b) -> b -> ListL a -> ListL b
-scanlL f b0 list = ListL $ \step x0 ->
-  snd $ foldlL list (\(b,r) a -> let b' = f b a in (b',step r b')) (b0,step x0 b0)
+----------------------------------------------------------------
+-- Instances
+----------------------------------------------------------------
 
 instance Functor ListR where
   fmap f (ListR list) = ListR $ \cons nil ->
@@ -98,6 +100,33 @@ instance Monoid (ListR a) where
 instance Monoid (ListL a) where
   mempty  = empty
   mappend = (<|>)
+
+----------------------------------------------------------------
+-- Functions
+----------------------------------------------------------------
+
+headL :: ListL a -> Maybe a
+headL = undefined
+
+headR :: ListR a -> Maybe a
+headR xs = foldrR xs (\a _ -> Just a) Nothing
+
+tailL :: ListL a -> ListL a
+tailL list = ListL $ \step x0 ->
+  snd $ foldlL list (\(f,r) a -> if f then (False,r) else (False,step r a)) (True,x0)
+
+takeL :: Int -> ListL a -> ListL a
+takeL n0 xs = ListL $ \step r0 ->
+  snd $ foldlL xs
+    (\(n,r) a -> if n <= 0 then (n,r) else (n-1,step r a))
+    (n0,r0)
+
+
+
+
+scanlL :: (b -> a -> b) -> b -> ListL a -> ListL b
+scanlL f b0 list = ListL $ \step x0 ->
+  snd $ foldlL list (\(b,r) a -> let b' = f b a in (b',step r b')) (b0,step x0 b0)
 
 
 
@@ -153,6 +182,6 @@ instance MonadIO m => MonadIO (ListT m) where
 --     cps   = cpsL
 --     uncps = uncpsL
 
--- -- a = 
+-- -- a =
 a,b,c :: ListT IO ()
 [a,b,c] = map (liftIO . putChar) ['a','b','c']
