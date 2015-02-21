@@ -9,8 +9,7 @@ module Data.Folds.MultiPass (
 import Control.Applicative
 import Control.Monad
 
-import Data.Folds.Class
-import Data.Folds.Pipette (Pipette(..))
+import Data.Folds.Class hiding (pipe)
 import Data.Folds.Left
 
 
@@ -58,7 +57,7 @@ instance PureFold MFold where
   extractFold (OneStage fold)    = extractFold fold
   extractFold (Staged fold next) = extractFold $ next $ extractFold fold
 
-  feedOne a = feedMany (Pipette $ \step r _ -> step r a)
+  feedOne = feedMany . pure
   feedMany src (OneStage fold)
     = OneStage (feedMany src fold)
   feedMany src (Staged fold next)

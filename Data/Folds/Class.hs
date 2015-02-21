@@ -1,34 +1,39 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE DeriveDataTypeable    #-}
 -- | Type classes for folds data types
 module Data.Folds.Class (
     -- * Category-like type class
     FiniCat(..)
   , (>>+)
   , InitCat(..)
-  , (+>>)  
-    -- * Monoid accumulators
-  , Accumulator(..)
-    -- ** Data types
-  , Count(..)
-  , Max(..)
-  , Min(..)
+  , (+>>)
+  , (>>>)
+  , (<<<)
+    -- * Data sample
+  , DataSample(..)
+  , Sample(..)
+    -- * Pipettes
+  , Pipette(..)
+  , pipe
+  , cut
     -- * Stateful folds API
   , PureFold(..)
   , runFold
   , MonadicFold(..)
   , runFoldM
-    -- * Data samples
-  , Sample(..)
   ) where
 
+import Control.Applicative
+import Control.Arrow
 import Control.Category
 import Control.Monad
 
+import Data.Typeable (Typeable)
 import Data.Monoid
 import Data.List (foldl')
-import Data.Folds.Pipette
 
 import Prelude hiding (id,(.))
 
@@ -66,111 +71,6 @@ infixl 1 +>>
 
 
 
-----------------------------------------------------------------
--- Monoidal accumulator
-----------------------------------------------------------------
-
--- | Type class for monoidal accumulators
-class Monoid m => Accumulator m a where
-  -- | Convert value to 1-element accumulator
-  unit :: a -> m
-  unit a = cons a mempty
-  -- | Prepend value to accumulator
-  cons :: a -> m -> m
-  cons a m = unit a <> m
-  -- | Append value to accumulator
-  snoc :: m -> a -> m
-  snoc m a = m <> unit a
-
-newtype Count a = Count { getCount :: Int }
-
-instance Monoid (Count a) where
-  mempty = Count 0
-  mappend (Count a) (Count b) = Count (a + b)
-
-instance Accumulator (Count a) a where
-  unit _ = Count 1
-
-
-newtype Max a = Max { getMax :: Maybe a }
-
-instance Ord a => Monoid (Max a) where
-  mempty = Max Nothing
-  mappend (Max Nothing) m = m
-  mappend m (Max Nothing) = m
-  mappend (Max (Just a)) (Max (Just b)) = Max (Just $! max a b)
-
-instance Ord a => Accumulator (Max a) a where
-  snoc (Max (Just a)) b = Max $ Just $! max a b
-  snoc (Max Nothing)  b = Max $ Just b
-  cons = flip snoc
-  unit = Max . Just
-
-
-newtype Min a = Min { getMin :: Maybe a }
-
-instance Ord a => Monoid (Min a) where
-  mempty = Min Nothing
-  mappend (Min Nothing) m = m
-  mappend m (Min Nothing) = m
-  mappend (Min (Just a)) (Min (Just b)) = Min (Just $! min a b)
-
-instance Ord a => Accumulator (Min a) a where
-  snoc (Min (Just a)) b = Min $ Just $! min a b
-  snoc (Min Nothing)  b = Min $ Just b
-  cons = flip snoc
-  unit = Min . Just
-
-
-
-instance Accumulator () a where
-  unit _ = ()
-
-instance Num a => Accumulator (Sum a) a where
-  unit = Sum
-
-instance Num a => Accumulator (Product a) a where
-  unit = Product
-
-instance Accumulator Any Bool where
-  unit = Any
-
-instance Accumulator All Bool where
-  unit = All
-
-instance Accumulator (Endo a) (a -> a) where
-  unit = Endo
-
-
-
-----------------------------------------------------------------
--- Folds
-----------------------------------------------------------------
-
--- | Type class for pure manifest folds.
-class PureFold fold where
-  -- | Extract current value from fold
-  extractFold :: fold a b -> b
-  -- | Push one element into fold  
-  feedOne  :: a -> fold a b -> fold a b
-  -- | Feed sample to the fold
-  feedMany :: Source a -> fold a b -> fold a b
-
-
--- | Type class for monadic manifest folds.
-class MonadicFold fold where
-  -- | Extract current value from fold
-  extractFoldM :: Monad m => fold m a b -> m b
-  -- | Push one element into fold
-  feedFoldM :: Monad m => a -> fold m a b -> m (fold m a b)
-
--- | Execute fold with attached data source
-runFold :: (PureFold fold) => fold () a -> a
-runFold = extractFold . feedOne ()
-
--- | Execute monadic fold with attached data source
-runFoldM :: (Monad m, MonadicFold fold) => fold m () a -> m a
-runFoldM = extractFoldM <=< feedFoldM ()
 
 
 
@@ -178,15 +78,128 @@ runFoldM = extractFoldM <=< feedFoldM ()
 -- Data sample
 ----------------------------------------------------------------
 
--- | Data sample. This type class is variation of
---   'Data.Foldable.Foldable' but elements' type is represented by
---   type family to allow monomorphic containers like text and
---   bytestring. Every instance of this type class should describe how
---   to fold itself.
-class Sample s where
-  type Element s :: *
-  toSource :: s -> Source (Element s)
+-- | Data sample which could be consumed with left fold
+newtype DataSample a = DataSample
+  { foldDataSample :: forall r. (r -> a -> r) -> r -> r }
+  deriving (Typeable)
+
+instance Functor DataSample where
+  fmap f (DataSample list) = DataSample $ \step x0 ->
+    list (\r a -> step r (f a)) x0
+
+instance Applicative DataSample where
+  pure a = DataSample $ \step r0 -> step r0 a
+  (<*>)  = ap
+
+instance Monad DataSample where
+  return a = DataSample $ \step r0 -> step r0 a
+  DataSample list >>= f = DataSample $ \step x0 ->
+    list (\r a -> foldDataSample (f a) step r) x0
+
+instance Alternative DataSample where
+  empty = DataSample $ \_ r -> r
+  DataSample contA <|> DataSample contB = DataSample $ \step x0 ->
+    contB step (contA step x0)
+
+instance Monoid (DataSample a) where
+  mempty  = empty
+  mappend = (<|>)
+
+
+-- | Type class for data samples
+class Sample v where
+  type Elem v :: *
+  asDataSample :: v -> DataSample (Elem v)
 
 instance Sample [a] where
-  type Element [a] = a
-  toSource xs = Pipette $ \step x _ -> foldl' step x xs
+  type Elem [a] = a
+  asDataSample xs = DataSample $ \step x -> foldl' step x xs
+
+
+
+----------------------------------------------------------------
+-- Data transformations
+----------------------------------------------------------------
+
+-- | Data transformer
+newtype Pipette a b = Pipette (a -> DataSample b)
+
+
+pipe :: (a -> b) -> Pipette a b
+pipe = arr
+
+cut :: (a -> Bool) -> Pipette a a
+cut f = Pipette $ \a -> if f a then pure a else empty
+
+{-
+flatten :: T.Foldable f => Pipette (f a) a
+flatten = Pipette $ \cont r a -> T.foldl' cont r a
+{-# INLINE flatten #-}
+
+flatMap :: T.Foldable f => (a -> f b) -> Pipette a b
+flatMap f = flatten <<< arr f
+{-# INLINE flatMap #-}
+-}
+
+instance Category Pipette where
+  id = Pipette pure
+  -- FIXME: this is just a Kleisli category. Is >=> efficient?
+  Pipette f . Pipette g = Pipette $ \a -> DataSample $ \step r0 ->
+    foldDataSample (g a) (\r b -> foldDataSample (f b) step r)  r0
+
+instance Arrow Pipette where
+  arr f = Pipette $ \a -> DataSample (\step r -> step r (f a))
+  -- FIXME: Kleisli arrow
+  first = undefined
+
+instance Functor (Pipette a) where
+  fmap f (Pipette p) = Pipette $ \a -> fmap f (p a)
+
+-- FIXME: Applicative, Monad
+
+instance Monoid (Pipette a b) where
+  mempty = Pipette $ const empty
+  Pipette f `mappend` Pipette g = Pipette $ \a ->
+    f a <> g a
+
+instance InitCat DataSample Pipette where
+  Pipette p <<+ list = list >>= p
+
+
+
+----------------------------------------------------------------
+-- Folds
+----------------------------------------------------------------
+
+
+-- | Type class for pure manifest folds.
+class PureFold fold where
+  -- | Extract current value from fold
+  extractFold :: fold a b -> b
+  -- | Push one element into fold
+  feedOne  :: a -> fold a b -> fold a b
+  -- | Feed sample to the fold
+  feedMany :: DataSample a -> fold a b -> fold a b
+
+
+-- | Type class for monadic manifest folds.
+class MonadicFold fold where
+  -- | Extract current value from fold
+  extractFoldM :: Monad m => fold m a b -> m b
+  -- | Push one element into fold
+  feedOneM :: Monad m => a -> fold m a b -> m (fold m a b)
+  -- | Push
+  feedManyM :: DataSample a -> fold m a b -> m (fold m a b)
+
+-- | Execute fold with attached data source
+runFold :: (PureFold fold, Sample v, Elem v ~ a)
+        => fold a b -> v -> b
+runFold fold xs
+  = extractFold $ feedMany (asDataSample xs) fold
+
+-- | Execute monadic fold with attached data source
+runFoldM :: (Monad m, MonadicFold fold, Sample v, Elem v ~ a)
+         => fold m a b -> v -> m b
+runFoldM fold xs
+  = extractFoldM =<< feedManyM (asDataSample xs) fold
+

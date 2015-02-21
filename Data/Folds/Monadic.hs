@@ -15,7 +15,6 @@ import Control.Applicative
 import Control.Monad
 
 import Data.Folds.Class
-import Data.Folds.Pipette (Pipette(..),PipetteM(..),toPipetteM)
 import Data.Folds.Internal
 
 
@@ -58,26 +57,28 @@ instance Monad m => Applicative (FoldST m a) where
 
 instance MonadicFold FoldM where
   extractFoldM (FoldM _ x out) = out x
-  feedFoldM a (FoldM step x out) = do x' <- step x a
-                                      return $ FoldM step x' out
+  feedOneM a (FoldM step x out) = do x' <- step x a
+                                     return $ FoldM step x' out
 
 instance MonadicFold FoldST where
   extractFoldM (FoldST _ out) = out
-  feedFoldM a fold@(FoldST inp _) = inp a >> return fold
+  feedOneM a fold@(FoldST inp _) = inp a >> return fold
 
+-- FIXME: Here we can run into efficiency problem with wrong order of
+--        >>= nesting
 instance Monad m => FiniCat Pipette (FoldM m) where
-  fold +<<pipe
-    = fold +<< toPipetteM pipe
-instance (m ~ m', Monad m) => FiniCat (PipetteM m) (FoldM m') where
-  FoldM step x0 done +<< PipetteM pipe
-    = FoldM (pipe step) x0 done
+  FoldM step x0 out +<< Pipette p
+    = FoldM (\x a -> foldDataSample (p a) step' (return x)) x0 out
+    where
+      step' mx b = do x <- mx
+                      step x b
 
 instance Monad m => FiniCat Pipette (FoldST m) where
-  fold +<< pipe
-    = fold +<< toPipetteM pipe
-instance (m ~ m', Monad m) => FiniCat (PipetteM m') (FoldST m) where
-  FoldST inp out +<< PipetteM pipe
-    = FoldST (pipe (const inp) ()) out
+  FoldST inp out +<< Pipette p
+    = FoldST (\a -> foldDataSample (p a) step' (return ()))
+             out
+    where
+      step' m b = m >> inp b
 
 
 

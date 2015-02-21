@@ -27,9 +27,9 @@ Library
   Exposed-modules:
     Data.Folds
     Data.Folds.Class
-    Data.Folds.Pipette
     Data.Folds.Left
     Data.Folds.Monadic
     Data.Folds.MultiPass
+    Data.Folds.Accumulator
   Other-modules:
     Data.Folds.Internal

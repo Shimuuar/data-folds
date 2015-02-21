@@ -1,10 +1,8 @@
 -- | Concrete folds for
 module Data.Folds (
-    module Data.Folds.Class
-  , module Data.Folds.Pipette
-  , module Data.Folds.Left
+    module X
   ) where
 
-import Data.Folds.Class
-import Data.Folds.Pipette
-import Data.Folds.Left
+import Data.Folds.Class   as X
+import Data.Folds.Monadic as X
+import Data.Folds.Left    as X
