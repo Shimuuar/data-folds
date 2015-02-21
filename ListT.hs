@@ -12,6 +12,13 @@ module ListT (
   , consL
   , snocR
   , snocL
+    -- * List functions
+  , headR
+  , tailL
+  , takeL
+  , scanlL
+  , unfoldrR
+  , unfoldrL
     -- * Monad transformer
   , ListT(..)
   , runListT
@@ -57,7 +64,7 @@ uncpsR :: ListR a -> [a]
 uncpsR (ListR list) = list (:) []
 
 uncpsL :: ListL a -> [a]
-uncpsL (ListL list) = list (\xs x -> xs . (x:)) id $ []
+uncpsL (ListL list) = list (\xs x -> xs . (x:)) id []
 
 -- | Prepend element to a list
 consR :: a -> ListR a -> ListR a
@@ -222,9 +229,18 @@ instance MonadTrans ListT where
   lift m = ListT $ \cons nil -> cons nil =<< m
 
 instance MonadIO m => MonadIO (ListT m) where
-  liftIO io = do ListT $ \cons nil -> cons nil =<< liftIO io
+  liftIO io = ListT $ \cons nil -> cons nil =<< liftIO io
 
 
+fromListL :: Monad m => ListL a -> ListT m a
+fromListL (ListL list) = ListT $ \step r0 ->
+  list (\mr a -> do r <- mr
+                    step r a
+       ) (return r0)
+
+fromListR :: Monad m => ListR a -> ListT m a
+fromListR (ListR list) = ListT $ \step r0 ->
+  list (\a k r -> step r a >>= k) return r0
 
 ----------------------------------------------------------------
 
@@ -239,5 +255,5 @@ instance MonadIO m => MonadIO (ListT m) where
 --     uncps = uncpsL
 
 -- -- a =
-a,b,c :: ListT IO ()
-[a,b,c] = map (liftIO . putChar) ['a','b','c']
+-- aa,bb,cc :: ListT IO ()
+-- [aa,bb,cc] = map (liftIO . putChar) ['a','b','c']
