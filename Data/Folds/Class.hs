@@ -201,8 +201,8 @@ class MonadicFold fold where
   extractFoldM :: Monad m => fold m a b -> m b
   -- | Push one element into fold
   feedOneM :: Monad m => a -> fold m a b -> m (fold m a b)
-  -- | Push
-  feedManyM :: DataSample a -> fold m a b -> m (fold m a b)
+  -- | Push full data sample
+  feedManyM :: Monad m => DataSample a -> fold m a b -> m (fold m a b)
 
 -- | Execute fold with attached data source
 runFold :: (PureFold fold, Sample v, Elem v ~ a)

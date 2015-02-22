@@ -14,7 +14,7 @@ module Data.Folds.Monadic (
 import Control.Applicative
 import Control.Monad
 
-import Data.Folds.Class
+import Data.Folds.Class    hiding (pipe)
 import Data.Folds.Internal
 
 
@@ -57,15 +57,24 @@ instance Monad m => Applicative (FoldST m a) where
 
 instance MonadicFold FoldM where
   extractFoldM (FoldM _ x out) = out x
-  feedOneM a (FoldM step x out) = do x' <- step x a
-                                     return $ FoldM step x' out
+  feedOneM a (FoldM step x out) = do
+    x' <- step x a
+    return $ FoldM step x' out
+  feedManyM as (FoldM step x0 out) = do
+    let step' mx b = do { x <- mx; step x b }
+    x' <- foldDataSample as step' (return x0)
+    return $ FoldM step x' out
 
 instance MonadicFold FoldST where
   extractFoldM (FoldST _ out) = out
   feedOneM a fold@(FoldST inp _) = inp a >> return fold
+  feedManyM as fold@(FoldST inp _) = do
+    let step' m b = m >> inp b
+    foldDataSample as step' (return ())
+    return fold
 
 -- FIXME: Here we can run into efficiency problem with wrong order of
---        >>= nesting
+--        >>= nesting. feedManyM is affected as well
 instance Monad m => FiniCat Pipette (FoldM m) where
   FoldM step x0 out +<< Pipette p
     = FoldM (\x a -> foldDataSample (p a) step' (return x)) x0 out
