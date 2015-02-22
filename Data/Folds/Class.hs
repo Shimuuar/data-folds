@@ -19,6 +19,8 @@ module Data.Folds.Class (
   , Pipette(..)
   , pipe
   , cut
+  , flatten
+  , flatMap
     -- * Stateful folds API
   , PureFold(..)
   , runFold
@@ -34,6 +36,7 @@ import Control.Monad
 import Data.Typeable (Typeable)
 import Data.Monoid
 import Data.List (foldl')
+import qualified Data.Foldable as T
 
 import Prelude hiding (id,(.))
 
@@ -68,9 +71,6 @@ infixr 1 <<+
 (+>>) :: (InitCat ic cat) => ic a -> cat a b -> ic b
 (+>>) = flip (<<+)
 infixl 1 +>>
-
-
-
 
 
 
@@ -122,24 +122,28 @@ instance Sample [a] where
 ----------------------------------------------------------------
 
 -- | Data transformer
+--
+-- FIXME: describe instance meaning
 newtype Pipette a b = Pipette (a -> DataSample b)
 
 
+-- | Lift function to pipette. Same as 'arr'
 pipe :: (a -> b) -> Pipette a b
 pipe = arr
 
+-- | Filter input of function
 cut :: (a -> Bool) -> Pipette a a
 cut f = Pipette $ \a -> if f a then pure a else empty
 
-{-
+-- | Feed all elements of `f a` into downstream fold
 flatten :: T.Foldable f => Pipette (f a) a
-flatten = Pipette $ \cont r a -> T.foldl' cont r a
+flatten = Pipette $ \fa -> DataSample $ \step r -> T.foldl' step r fa
 {-# INLINE flatten #-}
 
+-- | Feed elements of result of functions to downstream fold
 flatMap :: T.Foldable f => (a -> f b) -> Pipette a b
 flatMap f = flatten <<< arr f
 {-# INLINE flatMap #-}
--}
 
 instance Category Pipette where
   id = Pipette pure
@@ -149,13 +153,22 @@ instance Category Pipette where
 
 instance Arrow Pipette where
   arr f = Pipette $ \a -> DataSample (\step r -> step r (f a))
-  -- FIXME: Kleisli arrow
-  first = undefined
+  first  (Pipette f) = Pipette $ \ ~(b,d) -> f b >>= \c -> return (c,d)
+  second (Pipette f) = Pipette $ \ ~(d,b) -> f b >>= \c -> return (d,c)
 
 instance Functor (Pipette a) where
   fmap f (Pipette p) = Pipette $ \a -> fmap f (p a)
 
--- FIXME: Applicative, Monad
+instance Applicative (Pipette a) where
+  pure = Pipette . pure . pure
+  Pipette f <*> Pipette g = Pipette $ liftA2 (<*>) f g
+
+instance Monad (Pipette a) where
+  return = pure
+  Pipette m >>= f = Pipette $ \a -> do
+    b <- m a
+    case f b of
+      Pipette c -> c a
 
 instance Monoid (Pipette a b) where
   mempty = Pipette $ const empty
@@ -202,4 +215,3 @@ runFoldM :: (Monad m, MonadicFold fold, Sample v, Elem v ~ a)
          => fold m a b -> v -> m b
 runFoldM fold xs
   = extractFoldM =<< feedManyM (asDataSample xs) fold
-
