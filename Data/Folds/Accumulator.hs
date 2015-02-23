@@ -54,6 +54,7 @@ instance Ord a => Accumulator (Max a) a where
 
 newtype Min a = Min { getMin :: Maybe a }
 
+
 instance Ord a => Monoid (Min a) where
   mempty = Min Nothing
   mappend (Min Nothing) m = m

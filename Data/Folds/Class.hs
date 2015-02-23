@@ -32,6 +32,17 @@ import Control.Applicative
 import Control.Arrow
 import Control.Category
 import Control.Monad
+import           Data.Map      (Map)
+import           Data.IntMap   (IntMap)
+import           Data.Set      (Set)
+import           Data.Tree     (Tree)
+import           Data.Sequence (Seq)
+import           Data.IntSet   (IntSet)
+import qualified Data.IntSet           as IntSet
+import qualified Data.Vector.Unboxed   as U
+import qualified Data.Vector           as V
+import qualified Data.Vector.Storable  as S
+import qualified Data.Vector.Primitive as P
 
 import Data.Typeable (Typeable)
 import Data.Monoid
@@ -106,6 +117,7 @@ instance Monoid (DataSample a) where
   mappend = (<|>)
 
 
+
 -- | Type class for data samples
 class Sample v where
   type Elem v :: *
@@ -114,6 +126,46 @@ class Sample v where
 instance Sample [a] where
   type Elem [a] = a
   asDataSample xs = DataSample $ \step x -> foldl' step x xs
+
+instance Sample (Set a) where
+  type Elem (Set a) = a
+  asDataSample xs = DataSample $ \step x -> T.foldl' step x xs
+
+instance Sample IntSet where
+  type Elem IntSet = Int
+  asDataSample xs = DataSample $ \step x -> IntSet.foldl' step x xs
+
+instance Sample (Map k a) where
+  type Elem (Map k a) = a
+  asDataSample xs = DataSample $ \step x -> T.foldl' step x xs
+
+instance Sample (IntMap a) where
+  type Elem (IntMap a) = a
+  asDataSample xs = DataSample $ \step x -> T.foldl' step x xs
+
+instance Sample (Seq a) where
+  type Elem (Seq a) = a
+  asDataSample xs = DataSample $ \step x -> T.foldl' step x xs
+
+instance Sample (Tree a) where
+  type Elem (Tree a) = a
+  asDataSample xs = DataSample $ \step x -> T.foldl' step x xs
+
+instance Sample (V.Vector a) where
+  type Elem (V.Vector a) = a
+  asDataSample xs = DataSample $ \step x -> V.foldl' step x xs
+
+instance (U.Unbox a) => Sample (U.Vector a) where
+  type Elem (U.Vector a) = a
+  asDataSample xs = DataSample $ \step x -> U.foldl' step x xs
+
+instance (S.Storable a) => Sample (S.Vector a) where
+  type Elem (S.Vector a) = a
+  asDataSample xs = DataSample $ \step x -> S.foldl' step x xs
+
+instance (P.Prim a) => Sample (P.Vector a) where
+  type Elem (P.Vector a) = a
+  asDataSample xs = DataSample $ \step x -> P.foldl' step x xs
 
 
 
