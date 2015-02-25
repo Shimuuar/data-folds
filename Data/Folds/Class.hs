@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE DeriveDataTypeable    #-}
+{-# LANGUAGE PolyKinds             #-}
 -- | Type classes for folds data types
 module Data.Folds.Class (
     -- * Category-like type class
